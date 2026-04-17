@@ -1,6 +1,6 @@
 {
   "name": "rqv-dashboard",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Dashboard de retención de clientes - Restaurantes Que Venden",
   "main": "server.js",
   "scripts": {
