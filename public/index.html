@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RQV · Dashboard de Retención</title>
+  <title>Innovationbeast · RQV · Dashboard de Retención</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
@@ -131,7 +131,7 @@
     <div class="brand">
       <div class="brand-icon">RQ</div>
       <div>
-        <div class="brand-name">Restaurantes Que Venden</div>
+        <div class="brand-name">Innovationbeast · Restaurantes Que Venden</div>
         <div class="brand-sub">Panel de retención de clientes</div>
       </div>
     </div>
@@ -152,6 +152,7 @@
     <div class="filter-bar">
       <label>Desde</label><input type="date" id="fd"/>
       <label>Hasta</label><input type="date" id="fh"/>
+      <label>Tipo</label><select id="ftipo" style="min-width:80px;"><option value="">Todos</option><option value="RQV">RQV</option><option value="IB">IB</option></select>
       <label>Account Manager</label><select id="fam" style="min-width:140px;"><option value="">Todos</option></select>
       <label>Cliente</label><select id="fc" style="min-width:120px;"><option value="">Todos</option></select>
       <button class="btn btn-acc" onclick="applyF()">Aplicar</button>
@@ -236,6 +237,7 @@
   <!-- HISTORIAL -->
   <div id="panel-historial" class="panel">
     <div class="filter-bar">
+      <label>Tipo cliente</label><select id="htipo" style="min-width:80px;"><option value="">Todos</option><option value="RQV">RQV</option><option value="IB">IB</option></select>
       <label>Account Manager</label><select id="ham" style="min-width:140px;"><option value="">Todos</option></select>
       <label>Cliente</label><select id="hc" style="min-width:120px;"><option value="">Todos</option></select>
       <label>Tipo</label>
@@ -285,8 +287,9 @@
       </div>
       <div id="am-list" class="hlist" style="margin-bottom:1.5rem;"></div>
       <div class="sec-title">Agregar nuevo cliente</div>
-      <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;margin-bottom:1.5rem;align-items:end;">
+      <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;margin-bottom:1.5rem;align-items:end;">
         <div><div class="field-label">Nombre del cliente</div><input type="text" class="finp" id="new-cli" placeholder="Nombre del cliente..."/></div>
+        <div><div class="field-label">Tipo</div><select class="fsel" id="new-cli-tipo"><option value="RQV">RQV</option><option value="IB">IB</option></select></div>
         <div><div class="field-label">Account Manager</div><select class="fsel" id="new-cli-am"><option value="">Sin asignar</option></select></div>
         <div><div class="field-label">Fecha de ingreso</div><input type="date" class="finp" id="new-cli-fecha"/></div>
         <button class="btn btn-acc" style="height:38px;white-space:nowrap;" onclick="addClient()">+ Agregar</button>
@@ -314,7 +317,7 @@ var isAdmin = false;
 var clients = [];
 var recs = [];
 var accountManagers = [];
-var filt = {desde:'', hasta:'', cliente:'', am:''};
+var filt = {desde:'', hasta:'', cliente:'', am:'', tipo:''};
 var cNC = null, cSP = null;
 var formAnswers = {};
 
@@ -346,7 +349,7 @@ async function loadAll() {
 
     var r2 = await db.from('clients').select('*').order('created_at');
     if (r2.data) clients = r2.data.map(function(x){
-      return {id:x.id, name:x.name, am:x.am||'', active:x.active, addedDate:x.added_date, cancelledDate:x.cancelled_date||null};
+      return {id:x.id, name:x.name, am:x.am||'', tipo:x.tipo||'RQV', active:x.active, addedDate:x.added_date, cancelledDate:x.cancelled_date||null};
     });
 
     var r3 = await db.from('records').select('*').order('fecha');
@@ -372,6 +375,11 @@ async function loadAll() {
 function getAMForClient(name) {
   var c = clients.find(function(x){ return x.name === name; });
   return (c && c.am) ? c.am : '';
+}
+
+function getTipoForClient(name) {
+  var c = clients.find(function(x){ return x.name === name; });
+  return (c && c.tipo) ? c.tipo : '';
 }
 
 function calcEstado(a) {
@@ -405,6 +413,7 @@ function filtRecs() {
     if (filt.desde && r.fecha < filt.desde) return false;
     if (filt.hasta && r.fecha > filt.hasta) return false;
     if (filt.am && getAMForClient(r.cliente) !== filt.am) return false;
+    if (filt.tipo && getTipoForClient(r.cliente) !== filt.tipo) return false;
     return true;
   });
 }
@@ -414,13 +423,15 @@ function applyF() {
   filt.hasta=document.getElementById('fh').value;
   filt.cliente=document.getElementById('fc').value;
   filt.am=document.getElementById('fam').value;
+  filt.tipo=document.getElementById('ftipo').value;
   renderAll();
 }
 function clearF() {
-  filt={desde:'',hasta:'',cliente:'',am:''};
+  filt={desde:'',hasta:'',cliente:'',am:'',tipo:''};
   ['fd','fh'].forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('fc').value='';
   document.getElementById('fam').value='';
+  document.getElementById('ftipo').value='';
   renderAll();
 }
 
@@ -557,11 +568,12 @@ async function addClient(){
   var n=document.getElementById('new-cli').value.trim();
   var am=document.getElementById('new-cli-am').value;
   var fecha=document.getElementById('new-cli-fecha').value||today();
+  var tipo=document.getElementById('new-cli-tipo').value||'RQV';
   if(!n)return;
   if(clients.find(function(c){return c.name.toLowerCase()===n.toLowerCase()&&c.active;})){showToast('Ya existe como cliente activo','err');return;}
-  var res=await db.from('clients').insert({name:n,am:am||'',active:true,added_date:fecha}).select().single();
+  var res=await db.from('clients').insert({name:n,am:am||'',active:true,added_date:fecha,tipo:tipo}).select().single();
   if(res.error){showToast('Error al guardar cliente','err');return;}
-  var newClient={id:res.data.id,name:n,am:am||'',active:true,addedDate:fecha,cancelledDate:null};
+  var newClient={id:res.data.id,name:n,am:am||'',tipo:tipo,active:true,addedDate:fecha,cancelledDate:null};
   clients.push(newClient);
   var rres=await db.from('records').insert({cliente:n,fecha:fecha,tipo:'nuevo',pct:100,nota:'Cliente agregado a la lista'}).select().single();
   if(rres.data) recs.push({id:rres.data.id,cliente:n,fecha:fecha,tipo:'nuevo',pct:100,nota:'Cliente agregado a la lista'});
@@ -580,6 +592,32 @@ async function cancelClient(clientId){
   c.active=false;c.cancelledDate=fd;
   recs.push({cliente:c.name,fecha:fd,tipo:'cancelado',pct:0,nota:'Cliente eliminado de la lista activa'});
   syncSelects();renderAdminClients();renderAMList();renderAll();showToast('Cliente cancelado');
+}
+
+async function editClientName(clientId){
+  var c=clients.find(function(x){return x.id===clientId;});
+  if(!c)return;
+  var newName=prompt('Editar nombre del cliente:',c.name);
+  if(!newName||!newName.trim()||newName.trim()===c.name)return;
+  newName=newName.trim();
+  if(clients.find(function(x){return x.name.toLowerCase()===newName.toLowerCase()&&x.id!==clientId;})){showToast('Ya existe un cliente con ese nombre','err');return;}
+  var oldName=c.name;
+  await db.from('clients').update({name:newName}).eq('id',clientId);
+  await db.from('records').update({cliente:newName}).eq('cliente',oldName);
+  c.name=newName;
+  recs.forEach(function(r){if(r.cliente===oldName)r.cliente=newName;});
+  syncSelects();renderAdminClients();renderAMList();renderAll();showToast('Nombre actualizado correctamente');
+}
+
+async function deleteCancelledClient(clientId){
+  var c=clients.find(function(x){return x.id===clientId;});
+  if(!c||c.active)return;
+  if(!confirm('¿Eliminar definitivamente a "'+c.name+'" de la lista de cancelados?\n\nSe eliminarán también todos sus registros de reuniones.'))return;
+  await db.from('records').delete().eq('cliente',c.name);
+  await db.from('clients').delete().eq('id',clientId);
+  recs=recs.filter(function(r){return r.cliente!==c.name;});
+  clients=clients.filter(function(x){return x.id!==clientId;});
+  syncSelects();renderAdminClients();renderAMList();renderAll();showToast('Cliente eliminado del historial');
 }
 
 async function changeClientAM(clientId,val){
@@ -603,10 +641,11 @@ function renderAdminClients(){
   var cancelled=clients.filter(function(c){return !c.active;});
   document.getElementById('cli-active').innerHTML=active.length?active.map(function(c){
     var selOpts='<option value="">Sin asignar</option>'+accountManagers.map(function(a){return '<option value="'+a+'"'+(c.am===a?' selected':'')+'>'+a+'</option>';}).join('');
-    return '<div class="hcard"><div><div class="hcard-info">'+c.name+' <span class="cli-status cli-active">Activo</span></div><div class="hcard-meta">Ingresó '+c.addedDate+' · AM: <span style="color:var(--acc);">'+(c.am||'Sin asignar')+'</span></div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><select onchange="changeClientAM('+c.id+',this.value)" style="padding:4px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--wh);font-size:11px;min-width:130px;">'+selOpts+'</select><button class="btn btn-danger" style="padding:5px 12px;font-size:9px;" onclick="cancelClient('+c.id+')">Cancelar</button></div></div>';
+    var tipoBadge='<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:.5px;background:'+(c.tipo==='IB'?'rgba(55,138,221,.15)':'rgba(245,166,35,.15)')+';color:'+(c.tipo==='IB'?'var(--nuevos)':'var(--acc)')+';">'+( c.tipo||'RQV')+'</span>';
+    return '<div class="hcard"><div><div class="hcard-info">'+c.name+' <span class="cli-status cli-active">Activo</span> '+tipoBadge+'</div><div class="hcard-meta">Ingresó '+c.addedDate+' · AM: <span style="color:var(--acc);">'+(c.am||'Sin asignar')+'</span></div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><select onchange="changeClientAM('+c.id+',this.value)" style="padding:4px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--wh);font-size:11px;min-width:130px;">'+selOpts+'</select><button class="btn" style="padding:5px 12px;font-size:9px;border-color:var(--acc);color:var(--acc);" onclick="editClientName('+c.id+')">Editar nombre</button><button class="btn btn-danger" style="padding:5px 12px;font-size:9px;" onclick="cancelClient('+c.id+')">Cancelar</button></div></div>';
   }).join(''):'<div class="empty">Sin clientes activos</div>';
   document.getElementById('cli-cancelled').innerHTML=cancelled.length?cancelled.map(function(c){
-    return '<div class="hcard"><div><div class="hcard-info">'+c.name+' <span class="cli-status cli-cancelled">Cancelado</span></div><div class="hcard-meta">Ingresó '+c.addedDate+' · Canceló '+(c.cancelledDate||'—')+' · AM: '+(c.am||'—')+'</div></div></div>';
+    return '<div class="hcard"><div><div class="hcard-info">'+c.name+' <span class="cli-status cli-cancelled">Cancelado</span></div><div class="hcard-meta">Ingresó '+c.addedDate+' · Canceló '+(c.cancelledDate||'—')+' · AM: '+(c.am||'—')+'</div></div><button class="btn btn-danger" style="padding:5px 12px;font-size:9px;white-space:nowrap;" onclick="deleteCancelledClient('+c.id+')">Eliminar</button></div>';
   }).join(''):'<div class="empty">Sin cancelaciones registradas</div>';
   renderEditList();
 }
@@ -689,16 +728,20 @@ function resetForm(){
 
 // ─── Historial ───────────────────────────────────────────────
 function renderHistorial(){
+  var tipoF=document.getElementById('htipo').value;
   var amF=document.getElementById('ham').value,cli=document.getElementById('hc').value,est=document.getElementById('he').value;
   var list=recs.slice().reverse().filter(function(r){
     if(cli&&r.cliente!==cli)return false;
     if(est&&r.tipo!==est)return false;
     if(amF&&getAMForClient(r.cliente)!==amF)return false;
+    if(tipoF&&getTipoForClient(r.cliente)!==tipoF)return false;
     return true;
   });
   document.getElementById('hist-list').innerHTML=list.length?list.map(function(r){
     var am=getAMForClient(r.cliente);
-    return '<div class="hcard"><div><div class="hcard-info">'+r.cliente+' <span class="badge '+CLS[r.tipo]+'">'+LBL[r.tipo]+'</span>'+(am?' <span class="am-badge">'+am+'</span>':'')+'</div><div class="hcard-meta">'+r.fecha+(r.pct?' · '+r.pct+'%':'')+(r.nota?' · '+r.nota:'')+'</div></div></div>';
+    var tp=getTipoForClient(r.cliente);
+    var tipoBadge=tp?'<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:9px;font-weight:700;background:'+(tp==='IB'?'rgba(55,138,221,.15)':'rgba(245,166,35,.15)')+';color:'+(tp==='IB'?'var(--nuevos)':'var(--acc)')+';">'+tp+'</span>':'';
+    return '<div class="hcard"><div><div class="hcard-info">'+r.cliente+' <span class="badge '+CLS[r.tipo]+'">'+LBL[r.tipo]+'</span>'+(am?' <span class="am-badge">'+am+'</span>':'')+' '+tipoBadge+'</div><div class="hcard-meta">'+r.fecha+(r.pct?' · '+r.pct+'%':'')+(r.nota?' · '+r.nota:'')+'</div></div></div>';
   }).join(''):'<div class="empty">Sin registros</div>';
 }
 
